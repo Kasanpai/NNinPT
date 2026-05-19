@@ -1,42 +1,60 @@
+import numpy as np
 
-import numpy as np 
-class Perceptron:
-    def __init__(self, inputSize, hiddenSizes, outputSize):
-        # Инициализация слоев
-        self.Win = np.zeros((1+inputSize, hiddenSizes[0]))  # Входной слой в первый скрытый слой
-        self.Win[0,:] = np.random.randint(0, 3, size=(hiddenSizes[0]))  
-        self.Win[1:,:] = np.random.randint(-1, 2, size=(inputSize, hiddenSizes[0]))
+class MLP:
+    
+    def __init__(self, inputSize, outputSize, learning_rate=0.1, hiddenSizes=5):
+        # Инициализация нейронной сети
+        self.weights = [
+            np.random.uniform(-2, 2, size=(inputSize, hiddenSizes)),  # Веса скрытого слоя
+            np.random.uniform(-2, 2, size=(hiddenSizes, outputSize))  # Веса выходного слоя
+        ]
+        self.learning_rate = learning_rate
+        self.layers = None
 
-        self.hidden_weights = []  # Список для весов между скрытыми слоями
-        for i in range(1, len(hiddenSizes)):
-            Whide = np.zeros((1 + hiddenSizes[i-1], hiddenSizes[i]))  # весовые коэффициенты между слоями
-            Whide[0,:] = np.random.randint(0, 3, size=(hiddenSizes[i]))  
-            Whide[1:,:] = np.random.randint(-1, 2, size=(hiddenSizes[i-1], hiddenSizes[i]))
-            self.hidden_weights.append(Whide)
+    # Сигмоида
+    def sigmoid(self, x):
+        return 1 / (1 + np.exp(-x))
+
+    # Производная от сигмоиды
+    def derivative_sigmoid(self, x):
+        return self.sigmoid(x) * (1 - self.sigmoid(x))
+     
+    # Прямой проход
+    def feed_forward(self, x):
+        input_ = x  # Входные сигналы
+        hidden_ = self.sigmoid(np.dot(input_, self.weights[0]))  # Выход скрытого слоя
+        output_ = self.sigmoid(np.dot(hidden_, self.weights[1]))  # Выход сети (выходной слой)
         
-        self.Wout = np.random.randint(0, 2, size = (1+hiddenSizes[-1],outputSize)).astype(np.float64)
+        self.layers = [input_, hidden_, output_]
+        return self.layers[-1]
+    
+    # Обратный проход
+    def backward(self, target):
+        # Считаем производную ошибки сети
+        err = (target - self.layers[-1])
+    
+        # Прогоняем производную ошибки обратно ко входу, считая градиенты и корректируя веса
+        for i in range(len(self.layers)-1, 0, -1):
+            # Градиент слоя = ошибка слоя * производную функции активации
+            err_delta = err * self.derivative_sigmoid(self.layers[i])       
+            err = np.dot(err_delta, self.weights[i - 1].T)
+            dw = np.dot(self.layers[i - 1].T, err_delta)
+            
+            # Обновляем веса слоя
+            self.weights[i - 1] += self.learning_rate * dw
+    
+    # Функция обучения с использованием стохастического градиентного спуска (SGD)
+    def train(self, x_values, target):
         
-
-    def predict(self, Xp):
-        # Проход через первый скрытый слой
-        hidden = np.where((np.dot(Xp, self.Win[1:,:]) + self.Win[0,:]) >= 0.0, 1, -1).astype(np.float64)
-        
-        # Проход через все скрытые слои
-        for Whide in self.hidden_weights:
-            hidden = np.where((np.dot(hidden, Whide[1:,:]) + Whide[0,:]) >= 0.0, 1, -1).astype(np.float64)
-        
-        # Выходной слой
-        out = np.where((np.dot(hidden, self.Wout[1:,:]) + self.Wout[0,:]) >= 0.0, 1, -1).astype(np.float64)
-        
-        return out, hidden
-
-    def train(self, X, y, n_iter=5, eta = 0.01):
-        for i in range(n_iter):
-            print(self.Wout.reshape(1, -1))
-            for xi, target, j in zip(X, y, range(X.shape[0])):
-                pr, hidden = self.predict(xi)
-                self.Wout[1:] += ((eta * (target - pr)) * hidden).reshape(-1, 1)
-                self.Wout[0] += eta * (target - pr)
-        return self
-
-
+        n = np.shape(x_values)[0]
+        idx = np.arange(n)
+        print(idx)
+        np.random.shuffle(idx)
+        print(idx)
+        for i in idx:
+            self.feed_forward(x_values[i:i+1])
+            self.backward(target[i:i+1])
+    
+    # Функция предсказания
+    def predict(self, x_values):
+        return self.feed_forward(x_values)
